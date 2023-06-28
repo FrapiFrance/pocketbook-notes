@@ -56,3 +56,4 @@ Definitely, it's not easy from a printed book to identify page & offset, but in 
 
 Caveats : 
 - Not quite sure how we should build UUID, when from scratch... might be dependent from other fields ?
+- I had it work on my PB632 (french vivlio version, with poscketbook ROM ROM 6.7.1706 and [rooted](https://github.com/ezdiy/pbjb) YMMV, SGDG, toussa
