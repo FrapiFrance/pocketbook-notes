@@ -40,7 +40,7 @@ def import_notes_into_database(json_data:json, dry_run: bool=False, verbose: boo
             if verbose:
                 print(' '*4, note)
             # TODO check if this note already exists on target DB : book (thru l'item), type, highlighted text, text (for notes) 
-            # ; maybe check also page and/or portion of position ?
+            # ; maybe check also page and/or portion of quotation ?
             # if already there, continue
             # add item linked to book, with given UUID and timestamp
             # add tags : 102 104 and 105, same timestamp
