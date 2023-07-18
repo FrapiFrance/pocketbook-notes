@@ -13,6 +13,7 @@ You will have to put back `books.db` file on reader's `/mnt/ext1/system/config/`
 
 Caveats : notes from notes.json from a book never opened on `books.db`'s reader (same Title/Author) won't be inserted
 
+Definitely, it's not easy from a printed book to identify page & offset in order to uild a notes.json file, but in my case I wanted to re-insert notes from a previous reader's books.db database, so it's OK.
 
 # technical notes
 The books.db can actually be read & write 
@@ -52,8 +53,6 @@ For highlight : same, but no 105, and 102 is "highlight"
 
 Then copy back books.db on reader's  /mnt/ext1/system/config/
 
-Definitely, it's not easy from a printed book to identify page & offset, but in my case I wanted to re-insert notes from a previous reader's books.db database, so it's OK.
-
 Caveats : 
-- Not quite sure how we should build UUID, when from scratch... might be dependent from other fields ?
-- I had it work on my PB632 (french vivlio version, with poscketbook ROM ROM 6.7.1706 and [rooted](https://github.com/ezdiy/pbjb)) YMMV, SGDG, toussa
+- Not quite sure how we should build UUID, when from scratch... might be dependent from other fields ? by default, let us keep the same as in the original db
+- I had it work on my PB632 (french vivlio version, with pocketbook ROM 6.7.1706 and [rooted](https://github.com/ezdiy/pbjb)) YMMV, SGDG, toussa

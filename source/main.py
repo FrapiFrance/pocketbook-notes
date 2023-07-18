@@ -1,15 +1,39 @@
 #!/bin/python
 # -*- coding: utf-8 -*-
 
-from lib.db import *
 from optparse import OptionParser
-import json
+from copy import deepcopy
+
+from lib.db import *
+from lib.json_utils import *
 
 
+def _get_note_un_timestamped_json_copy(dict_ref):
+    """Copy except timestamp and dates
+
+    Args:
+        dict_ref (json): a note json
+
+    Returns:
+        _type_: deepcopy of dict_ref note, without any time-related element (AFAIK)
+    """
+    note = deepcopy(dict_ref)
+    note.pop('timestamp', None)
+    if 'anchor' in note:
+        note['anchor'].pop('created', None)
+        note['anchor'].pop('updated', None)
+    if 'quotation' in note:
+        note['quotation'].pop('updated', None)
+    return note
 
 def export_as_json():
+    """Build a json with all relevant data from notes of the database
+
+    Returns:
+        json: a json describing all notes
+    """
     notes = {}
-    for (title, author, item_id, item_uuid, item_timestamp) in select_notes(verbose=False):
+    for (title, author, item_id, item_uuid, item_timestamp, item_state) in select_notes(verbose=False):
         #print(note)
         if f"{title}_|_{author}" not in notes:
             # book not already listed
@@ -17,16 +41,34 @@ def export_as_json():
         # get note detail
         notes[f"{title}_|_{author}"][item_uuid] = select_note_details(item_id=item_id, verbose=False)
         notes[f"{title}_|_{author}"][item_uuid]['timestamp'] = item_timestamp
+        notes[f"{title}_|_{author}"][item_uuid]['state'] = item_state  # some are 0, some are 2... don't what it means. let us keep it unchanged
         
+        my_current_note = _get_note_un_timestamped_json_copy(notes[f"{title}_|_{author}"][item_uuid])
+        
+        # now (could have been done before), let us check this content is not already in the list for this book
+        duplicate = False
+        for other_item_uuid in notes[f"{title}_|_{author}"]:
+            if other_item_uuid == item_uuid:
+                continue 
+            other_note = _get_note_un_timestamped_json_copy(notes[f"{title}_|_{author}"][other_item_uuid])
+                        
+            if other_note == my_current_note:
+                # duplicate
+                duplicate = True
+                break
+        if duplicate:
+            notes[f"{title}_|_{author}"].pop(item_uuid)
     return notes
         
-def import_notes_into_database(json_data:json, dry_run: bool=False, verbose: bool=False, skip: bool=False):
+def import_notes_into_database(json_data:json, dry_run: bool=False, verbose: bool=False, skip_unknown_books: bool=False):
+    target_database_notes = export_as_json()
+    
     for book in json_data:
         title, author = book.split('_|_')
         book_id = get_book(author, title, verbose=verbose)
         if book_id is None:
             message = f"Book {author} - {title} not found in target database ! upload it to reader, open it, and get database again"
-            if skip:
+            if skip_unknown_books:
                 if verbose:
                     print("WARNING",message)
                 continue
@@ -36,15 +78,36 @@ def import_notes_into_database(json_data:json, dry_run: bool=False, verbose: boo
 
         if verbose:
             print(book, author, title, book_id)
-        for note in json_data[book]:
+        stop = 5 # FIXME
+        for note_uuid in json_data[book]:
             if verbose:
-                print(' '*4, note)
-            # TODO check if this note already exists on target DB : book (thru l'item), type, highlighted text, text (for notes) 
-            # ; maybe check also page and/or portion of quotation ?
-            # if already there, continue
+                print(' '*4, note_uuid)
+            # check if this note already exists on target DB : 
+            # TODO here we check full identity, maybe we should only check book , type, highlighted text, text (for notes) 
+            # and **page** (or at least only a part of je position ['quotation']['begin'] ?)
+            my_current_note = _get_note_un_timestamped_json_copy(json_data[book][note_uuid])            
+            duplicate = False
+            if f"{title}_|_{author}" in target_database_notes:
+                for other_item_uuid in target_database_notes[f"{title}_|_{author}"]:
+                    other_note = _get_note_un_timestamped_json_copy(target_database_notes[f"{title}_|_{author}"][other_item_uuid])                            
+                    if other_note == my_current_note:
+                        # duplicate
+                        duplicate = True
+                        break
+            if duplicate:
+                # if already there, continue
+                if verbose:
+                    print("WARNING",f"Note {note_uuid} already there as {other_item_uuid} in target database")                    
+                continue
+            # Let us add this note in target database            
             # add item linked to book, with given UUID and timestamp
-            # add tags : 102 104 and 105, same timestamp
-
+            conn = create_connection()
+            item_id = add_item(book_id, note_uuid, json_data[book][note_uuid]['timestamp'], json_data[book][note_uuid]['state'], dry_run=dry_run, commit=False)
+            # add tags : 102 104 and 105 and others, same timestamp
+            add_note_details(item_id= item_id, note= json_data[book][note_uuid], dry_run=dry_run, commit=False)
+            conn.commit()
+            stop -= 1
+            5/stop  # FIXME let us stop at 5th element, just to check all is OK so far...
 
 if __name__ == "__main__":
     parser = OptionParser("""Export/import pocketbook notes
@@ -76,17 +139,17 @@ if __name__ == "__main__":
         "-s",
         "--skip-unknown",
         action="store_true",
-        dest="SKIP",
+        dest="SKIP_UNKNOWN_BOOKS",
         default=False,
-        help="skip unknown books",
+        help="skip unknown books, default False.",
     )
     parser.add_option(
-        "-v",
-        "--verbose",
+        "-q",
+        "--quiet",
         action="store_true",
-        dest="VERBOSE",
+        dest="QUIET",
         default=False,
-        help="print data",
+        help="do not print data and warnings, default to print",
     )
     parser.add_option(
         "--dry-run",
@@ -96,23 +159,19 @@ if __name__ == "__main__":
         help="do not alter target database (for import). default False",
     )
     (options, args) = parser.parse_args()
-    create_connection(db_file=options.DB_FILE)
+    conn = create_connection(db_file=options.DB_FILE)
     if options.ACTION == 'export':
         json_data = export_as_json()
-        if options.VERBOSE:
-            print(json.dumps(json_data, sort_keys=False, indent=4, ensure_ascii=False ))
+        if not(options.QUIET):
+            print_json(json_data)
         if not options.DRY_RUN:
             with open(options.JSON_FILE, "w", encoding="utf8") as f:
-                # not readable json.dump(json_data, f, ensure_ascii=False)
-                f.write(json.dumps(json_data, sort_keys=False, indent=4, ensure_ascii=False ))
+                #  json.dump(json_data, f, ensure_ascii=False) :  not readable because not formatted, so we force a nice format
+                f.write(print_json(json_data, quiet=True))
     else:
         with open(options.JSON_FILE, "r", encoding="utf8") as json_file:
             json_data = json.load(json_file)
-        import_notes_into_database(json_data=json_data, dry_run=options.DRY_RUN, verbose=options.VERBOSE, skip=options.SKIP)
+        import_notes_into_database(json_data=json_data, dry_run=options.DRY_RUN, verbose=not(options.QUIET), skip_unknown_books=options.SKIP_UNKNOWN_BOOKS)
 
- 
-    
-
-
-
-print('done')
+    conn.close()
+    print('done')

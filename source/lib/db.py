@@ -1,3 +1,6 @@
+#!/bin/python
+# -*- coding: utf-8 -*-
+
 import sqlite3
 from typing import *
 
@@ -5,6 +8,8 @@ import settings
 import json
 
 conn: sqlite3.Connection = None
+
+OBJ_BOOK_MARK_TYPE_ID = 4
 
 def create_connection(db_file = settings.DEFAULT_DB_FILE):
     """ create a database connection to the SQLite database
@@ -21,39 +26,6 @@ def create_connection(db_file = settings.DEFAULT_DB_FILE):
         print(e)
     return conn
 
-def select_full_notes_desc(verbose=False):
-    """
-    gives list of notes with related books info
-    :param verbose: shall we print the results
-    :return: rows
-    """
-    conn = create_connection()
-    cur = conn.cursor()
-    cur.execute("""select OID, Title, Authors, item, json_extract(Highlight, '$.text') as Text, substr(json_extract(Highlight, '$.begin'),16,
-			max(instr(json_extract(Highlight, '$.begin'),'&')-16 ,2)
-
-			) as Page, json_extract(Highlight, '$.updated') as Date,  Highlight from 
-Books inner join 
-(select OID as BookID, item, Highlight from 
-	Items inner join 
-	(select ParentID, Items.OID as item, Highlight from 
-		Items inner join 
-			(select ItemID, Val as Highlight from 
-				Tags 
-				where TagID in (104, 105) and json_extract(Val,'$.text') <> "Bookmark"
-			) as Highlights
-		on Highlights.ItemID = OID
-		) as Highlights
-	on Highlights.ParentID = OID) as Highlights 
-on BookID = OID order by title, oid, item;""")
-
-    rows = cur.fetchall()
-
-    if verbose:
-        for row in rows:
-            print(row)
-    return rows
-
 def select_notes(verbose=False):
     """
     gives list of notes with all details
@@ -62,11 +34,11 @@ def select_notes(verbose=False):
     """
     conn = create_connection()
     cur = conn.cursor()
-    cur.execute("""select  Title, Authors, items.OID, hashUUID, TimeAlt from 
+    cur.execute("""select  Title, Authors, Items.OID, Items.hashUUID, Items.TimeAlt, Items.State from 
 Books inner join items on Items.ParentID = Books.OID inner JOIN tags on tags.ItemID = Items.OID
 where items.TypeID=4
-and TagID=102 and Tags.Val in ('highlight','note')
-order by items.OID, title;""")
+and TagID=102 and Tags.Val in ('highlight','note','bookmark') -- I've found 2 'draws' on my PB632, also; discarded
+order by title, items.OID, title;""")
 
     rows = cur.fetchall()
 
@@ -116,10 +88,10 @@ def select_note_details(item_id=None, verbose=False):
             # I have at least 1 bm with type 'highlight' AND a 105 with empty json, no 'text' element
             json_data = json.loads(val)
             if 'text' in json_data:
-                note['text'] = json_data['text']
+                note['text'] = json_data
         elif tag_id == 106:
             # 106	bm.color
-            # colour; not very useful for b&w readers...
+            # colour; not very useful for b&w readers... frequently there for highlight, not for note. values : cian, yellow
             note['color'] = val
         elif tag_id == 107:
             # 107	bm.icon
@@ -127,7 +99,6 @@ def select_note_details(item_id=None, verbose=False):
             note['icon'] = val
         elif tag_id == 108:
             # 108	bm.voice
-            # 109	bm.image
             # unused on my PB632
             note['voice'] = val
         elif tag_id == 109:
@@ -158,3 +129,48 @@ def get_book(author : str, title : str, verbose : bool =False):
         raise(RuntimeError(f"Found two books {author} - {title} in target database ! - aborting"))
     return None
     
+def add_item(book_id, note_uuid, timestamp, state, dry_run: bool=False, commit: bool=True):
+    conn = create_connection()
+    cur = conn.cursor()
+    if not(dry_run):
+        cur.execute("""insert into Items(ParentID, TypeID, State, TimeAlt, HashUUID)  values(?,?,?,?,?)""",
+                    (book_id, OBJ_BOOK_MARK_TYPE_ID, state, timestamp, note_uuid))
+        if commit:
+            conn.commit()
+    return cur.lastrowid
+    
+def add_note_details(item_id, note, dry_run: bool=False, commit: bool=True):
+    conn = create_connection()
+    cur = conn.cursor()
+    if not(dry_run):
+        if 'anchor' in note:
+            cur.execute("""insert into Tags(ItemID, TagID, Val, TimeEdt)  values(?,?,?,?)""", 
+                        (item_id, 101, json.dumps(note['anchor'], ensure_ascii=False), note['timestamp']))
+        if 'type' in note:
+            cur.execute("""insert into Tags(ItemID, TagID, Val, TimeEdt)  values(?,?,?,?)""", 
+                        (item_id, 102, note['type'], note['timestamp']))
+        if 'subtype' in note:
+            cur.execute("""insert into Tags(ItemID, TagID, Val, TimeEdt)  values(?,?,?,?)""", 
+                        (item_id, 103, note['tsubype'], note['timestamp']))
+        if 'quotation' in note:
+            cur.execute("""insert into Tags(ItemID, TagID, Val, TimeEdt)  values(?,?,?,?)""", 
+                        (item_id, 104, json.dumps(note['quotation'], ensure_ascii=False), note['timestamp']))
+        if 'text' in note:
+            cur.execute("""insert into Tags(ItemID, TagID, Val, TimeEdt)  values(?,?,?,?)""", 
+                        (item_id, 105, json.dumps({ 'text': note['text']}, ensure_ascii=False), note['timestamp']))
+        if 'color' in note:
+            cur.execute("""insert into Tags(ItemID, TagID, Val, TimeEdt)  values(?,?,?,?)""", 
+                        (item_id, 106, note['color'], note['timestamp']))
+        if 'icon' in note:
+            cur.execute("""insert into Tags(ItemID, TagID, Val, TimeEdt)  values(?,?,?,?)""", 
+                        (item_id, 107, note['icon'], note['timestamp']))
+        if 'voice' in note:
+            cur.execute("""insert into Tags(ItemID, TagID, Val, TimeEdt)  values(?,?,?,?)""", 
+                        (item_id, 108, note['voice'], note['timestamp']))
+        if 'image' in note:
+            cur.execute("""insert into Tags(ItemID, TagID, Val, TimeEdt)  values(?,?,?,?)""", 
+                        (item_id, 109, note['image'], note['timestamp']))
+        
+        if commit:
+            conn.commit()
+    return cur.lastrowid
