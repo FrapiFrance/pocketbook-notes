@@ -45,6 +45,7 @@ def export_as_json(ignore_types : List[str] = []):
         notes[f"{title}_|_{author}"][item_uuid] = select_note_details(item_id=item_id, verbose=False)
         notes[f"{title}_|_{author}"][item_uuid]['timestamp'] = item_timestamp
         notes[f"{title}_|_{author}"][item_uuid]['state'] = item_state  # some are 0, some are 2... don't what it means. let us keep it unchanged
+        # actuallyn state 2 seems hidden. Will force state to 0 for all according to FORCE_0_STATE
         
         my_current_note = _get_note_un_timestamped_json_copy(notes[f"{title}_|_{author}"][item_uuid])
         
@@ -79,8 +80,6 @@ def import_notes_into_database(json_data:json, ignore_types : List[str] = [], dr
     for book in json_data:
         title, author = book.split('_|_')
         stop = 5 # FIXME
-        if verbose:
-            print(author, title)
         for note_uuid in json_data[book]:
             if json_data[book][note_uuid]['type'] in ignore_types:
                 continue
@@ -98,7 +97,7 @@ def import_notes_into_database(json_data:json, ignore_types : List[str] = [], dr
                     raise(RuntimeWarning(message))
 
             if verbose:
-                print(' '*4, json_data[book][note_uuid])
+                print(' '*4, str(json_data[book][note_uuid])[:210])
             # check if this note already exists on target DB : 
             # TODO here we check full identity, maybe we should only check book , type, highlighted text, text (for notes) 
             # and **page** (or at least only a part of je position ['quotation']['begin'] ?)

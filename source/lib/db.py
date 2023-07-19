@@ -148,10 +148,10 @@ def add_item(book_id, note_uuid, timestamp, state, dry_run: bool=False, commit: 
     cur = conn.cursor()
     if not(dry_run):
         # some state are 0, some are 2... don't what it means. shall we keep it unchanged ?
-        # actuallyn state 2 seems hidden. Will force state to 0 for all according to FORCE_0_STATE
+        # actually state 2 seems hidden. Will force state to 0 for all according to FORCE_0_STATE
         if settings.FORCE_0_STATE:
             state=0
-
+            
         cur.execute("""insert into Items(ParentID, TypeID, State, TimeAlt, HashUUID)  values(?,?,?,?,?)""",
                     (book_id, OBJ_BOOK_MARK_TYPE_ID, state, timestamp, note_uuid))
         if commit:

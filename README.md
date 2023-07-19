@@ -1,12 +1,26 @@
 # pocketbook-notes
 Tool to extract and insert notes &amp; highlights from a Pocketbook (also known as Vivlio in France) e-reader to another
 
+TL;DR Usage:
+1. reboot your legacy e-reader
+2. copy legacy reader's `/mnt/ext1/system/config/books.db` into a `run`` directory to be created next to `source`
+3. run `python source/main.py` (some other options can be interesting, see `python source/main.py -h`)
+4. reboot your target e-reader
+5. copy target reader's `/mnt/ext1/system/config/books.db` into `run` directory
+6. run `python source/main.py -a import -s -- dry-run|grep WARNING` (some other options can be interesting, see `python source/main.py -h`)
+7. on target e-reader, **open** all missing books if you want its notes to be imported
+8. run again 4. to 7. until you are OK. *You may also alter `run/notes.json` file if author and/or titles are different for same book between legacy and target e-reader*
+9. copy `run/books.db` into target reader's `/mnt/ext1/system/config/books.db`
+10. reboot your target e-reader
+11. pray and/or enjoy
+
+
+
 # Extract
 Take a `books.db` file (typically found on `/mnt/ext1/system/config/`), and extract all notes and highlights into a notes.json file (deduplicated as far as we can)
 
 caveats : 
 When getting `books.db`, just make sure (for instance by rebooting the reader before) that all the [wal](https://www.sqlite.org/wal.html) are actually synced into `books.db`, so no more `books.db-wal` or `books.db-shm` in `/mnt/ext1/system/config/`
-
 # Import
 Given a `books.db` file and a notes.json file, add these into `books.db`.
 You will have to put back `books.db` file on reader's `/mnt/ext1/system/config/`
