@@ -17,7 +17,7 @@ TL;DR Usage:
 
 
 # Extract
-Take a `books.db` file (typically found on `/mnt/ext1/system/config/`), and extract all notes and highlights into a notes.json file (deduplicated as far as we can)
+Take a `books.db` file (typically found on `/mnt/ext1/system/config/`; this can also be `/system/profiles/default/`, especially for recent devices, I was said), and extract all notes and highlights into a notes.json file (deduplicated as far as we can)
 
 caveats : 
 When getting `books.db`, just make sure (for instance by rebooting the reader before) that all the [wal](https://www.sqlite.org/wal.html) are actually synced into `books.db`, so no more `books.db-wal` or `books.db-shm` in `/mnt/ext1/system/config/`
