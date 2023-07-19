@@ -127,7 +127,10 @@ def get_book(author : str, title : str, verbose : bool =False):
     
     conn = create_connection()
     cur = conn.cursor()
-    cur.execute("select OID from Books where Title = ? and  Authors = ? ", (title,author))
+    if author != "None":
+        cur.execute("select OID from Books where Title = ? and  Authors = ? ", (title,author))
+    else:
+        cur.execute("select OID from Books where Title = ? ", (title,))
 
     rows = cur.fetchall()
     
@@ -144,6 +147,11 @@ def add_item(book_id, note_uuid, timestamp, state, dry_run: bool=False, commit: 
     conn = create_connection()
     cur = conn.cursor()
     if not(dry_run):
+        # some state are 0, some are 2... don't what it means. shall we keep it unchanged ?
+        # actuallyn state 2 seems hidden. Will force state to 0 for all according to FORCE_0_STATE
+        if settings.FORCE_0_STATE:
+            state=0
+
         cur.execute("""insert into Items(ParentID, TypeID, State, TimeAlt, HashUUID)  values(?,?,?,?,?)""",
                     (book_id, OBJ_BOOK_MARK_TYPE_ID, state, timestamp, note_uuid))
         if commit:
