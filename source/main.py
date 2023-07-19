@@ -79,7 +79,6 @@ def import_notes_into_database(json_data:json, ignore_types : List[str] = [], dr
     unknown_books = list()
     for book in json_data:
         title, author = book.split('_|_')
-        stop = 5 # FIXME
         for note_uuid in json_data[book]:
             if json_data[book][note_uuid]['type'] in ignore_types:
                 continue
@@ -123,8 +122,6 @@ def import_notes_into_database(json_data:json, ignore_types : List[str] = [], dr
             add_note_details(item_id= item_id, note= json_data[book][note_uuid], dry_run=dry_run, commit=False)
             if not(dry_run):
                 conn.commit()
-                stop -= 1
-                5/stop  # FIXME let us stop at 5th element, just to check all is OK so far...
 
 if __name__ == "__main__":
     parser = OptionParser("""Export/import pocketbook notes
