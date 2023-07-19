@@ -26,18 +26,22 @@ def create_connection(db_file = settings.DEFAULT_DB_FILE):
         print(e)
     return conn
 
-def select_notes(verbose=False):
-    """
-    gives list of notes with all details
-    :param verbose: shall we print the results
-    :return: rows
-    """
+def select_notes(ignore_types : List[str] = [], verbose=False):
+    """gives list of notes with all details
+
+    Args:
+        ignore_types (List[str], optional): list of ignored types (as stored in tag 102). Defaults to [].
+        verbose (bool, optional): shall we print the results. Defaults to False.
+    """    
+    ignore_str = "('" + "', '".join(ignore_types) + "')"
+    
     conn = create_connection()
     cur = conn.cursor()
-    cur.execute("""select  Title, Authors, Items.OID, Items.hashUUID, Items.TimeAlt, Items.State from 
+    cur.execute(f"""select  Title, Authors, Items.OID, Items.hashUUID, Items.TimeAlt, Items.State from 
 Books inner join items on Items.ParentID = Books.OID inner JOIN tags on tags.ItemID = Items.OID
 where items.TypeID=4
 and TagID=102 and Tags.Val in ('highlight','note','bookmark') -- I've found 2 'draws' on my PB632, also; discarded
+and Tags.Val not in {ignore_str}
 order by title, items.OID, title;""")
 
     rows = cur.fetchall()
@@ -107,6 +111,8 @@ def select_note_details(item_id=None, verbose=False):
             note['image'] = val
     return note  
 
+
+book_id_cache = {}
 def get_book(author : str, title : str, verbose : bool =False):
     """get book id on target database
 
@@ -115,6 +121,10 @@ def get_book(author : str, title : str, verbose : bool =False):
         title (str): book's title
         verbose (bool, optional): shall we tell that we found it. Defaults to False.
     """    
+    global book_id_cache
+    if f"{title}_|_{author}" in book_id_cache:
+        return book_id_cache[f"{title}_|_{author}"]
+    
     conn = create_connection()
     cur = conn.cursor()
     cur.execute("select OID from Books where Title = ? and  Authors = ? ", (title,author))
@@ -124,6 +134,7 @@ def get_book(author : str, title : str, verbose : bool =False):
     if len(rows) == 1:
         if verbose:
             print(f"Book {author} - {title} found : {rows[0][0]}")
+        book_id_cache[f"{title}_|_{author}"] = rows[0][0]
         return(rows[0][0])
     elif len(rows) > 1:
         raise(RuntimeError(f"Found two books {author} - {title} in target database ! - aborting"))

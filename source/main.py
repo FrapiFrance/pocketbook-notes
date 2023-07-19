@@ -26,14 +26,17 @@ def _get_note_un_timestamped_json_copy(dict_ref):
         note['quotation'].pop('updated', None)
     return note
 
-def export_as_json():
+def export_as_json(ignore_types : List[str] = []):
     """Build a json with all relevant data from notes of the database
+
+    Args:
+        ignore_types (List[str], optional): list of ignored types (as stored in tag 102). Defaults to [].
 
     Returns:
         json: a json describing all notes
     """
     notes = {}
-    for (title, author, item_id, item_uuid, item_timestamp, item_state) in select_notes(verbose=False):
+    for (title, author, item_id, item_uuid, item_timestamp, item_state) in select_notes(ignore_types, verbose=False):
         #print(note)
         if f"{title}_|_{author}" not in notes:
             # book not already listed
@@ -60,36 +63,50 @@ def export_as_json():
             notes[f"{title}_|_{author}"].pop(item_uuid)
     return notes
         
-def import_notes_into_database(json_data:json, dry_run: bool=False, verbose: bool=False, skip_unknown_books: bool=False):
-    target_database_notes = export_as_json()
+def import_notes_into_database(json_data:json, ignore_types : List[str] = [], dry_run: bool=False, verbose: bool=False, skip_unknown_books: bool=False):
+    """import notes into target database
+
+    Args:
+        json_data (json): a json describing all notes
+        ignore_types (List[str], optional): list of ignored types (as stored in tag 102). Defaults to [].
+        dry_run (bool, optional): do not alter database. Defaults to False.
+        verbose (bool, optional): print warnings and data. Defaults to False.
+        skip_unknown_books (bool, optional): skip books unknown in target database. Defaults to False.
+    """
+    target_database_existing_notes = export_as_json(ignore_types=ignore_types)
     
+    unknown_books = list()
     for book in json_data:
         title, author = book.split('_|_')
-        book_id = get_book(author, title, verbose=verbose)
-        if book_id is None:
-            message = f"Book {author} - {title} not found in target database ! upload it to reader, open it, and get database again"
-            if skip_unknown_books:
-                if verbose:
-                    print("WARNING",message)
-                continue
-            else:
-                raise(RuntimeWarning(message))
-        # should we create it ?
-
-        if verbose:
-            print(book, author, title, book_id)
         stop = 5 # FIXME
+        if verbose:
+            print(author, title)
         for note_uuid in json_data[book]:
+            if json_data[book][note_uuid]['type'] in ignore_types:
+                continue
+            
+            # search book into new DB. we do it here so that if all notes are of an ignored type, a missing book is not a warning 
+            book_id = get_book(author, title, verbose=verbose)
+            if book_id is None and book not in unknown_books:
+                unknown_books.append(book)
+                message = f"Book {author} - {title} not found in target database ! upload it to reader, open it, and get database again"
+                if skip_unknown_books:
+                    if verbose:
+                        print("WARNING",message)
+                    continue
+                else:
+                    raise(RuntimeWarning(message))
+
             if verbose:
-                print(' '*4, note_uuid)
+                print(' '*4, json_data[book][note_uuid])
             # check if this note already exists on target DB : 
             # TODO here we check full identity, maybe we should only check book , type, highlighted text, text (for notes) 
             # and **page** (or at least only a part of je position ['quotation']['begin'] ?)
             my_current_note = _get_note_un_timestamped_json_copy(json_data[book][note_uuid])            
             duplicate = False
-            if f"{title}_|_{author}" in target_database_notes:
-                for other_item_uuid in target_database_notes[f"{title}_|_{author}"]:
-                    other_note = _get_note_un_timestamped_json_copy(target_database_notes[f"{title}_|_{author}"][other_item_uuid])                            
+            if f"{title}_|_{author}" in target_database_existing_notes:
+                for other_item_uuid in target_database_existing_notes[f"{title}_|_{author}"]:
+                    other_note = _get_note_un_timestamped_json_copy(target_database_existing_notes[f"{title}_|_{author}"][other_item_uuid])                            
                     if other_note == my_current_note:
                         # duplicate
                         duplicate = True
@@ -105,9 +122,10 @@ def import_notes_into_database(json_data:json, dry_run: bool=False, verbose: boo
             item_id = add_item(book_id, note_uuid, json_data[book][note_uuid]['timestamp'], json_data[book][note_uuid]['state'], dry_run=dry_run, commit=False)
             # add tags : 102 104 and 105 and others, same timestamp
             add_note_details(item_id= item_id, note= json_data[book][note_uuid], dry_run=dry_run, commit=False)
-            conn.commit()
-            stop -= 1
-            5/stop  # FIXME let us stop at 5th element, just to check all is OK so far...
+            if not(dry_run):
+                conn.commit()
+                stop -= 1
+                5/stop  # FIXME let us stop at 5th element, just to check all is OK so far...
 
 if __name__ == "__main__":
     parser = OptionParser("""Export/import pocketbook notes
@@ -137,18 +155,27 @@ if __name__ == "__main__":
     )
     parser.add_option(
         "-s",
-        "--skip-unknown",
+        "--skip-unknown-books",
         action="store_true",
         dest="SKIP_UNKNOWN_BOOKS",
         default=False,
         help="skip unknown books, default False.",
     )
     parser.add_option(
+        "-i",
+        "--ignore-type",
+        action="append",
+        dest="IGNORE_TYPES",
+        type="str",
+        help="ignore some types (among bookmark highlight note)",
+    )
+    
+    parser.add_option(
         "-q",
         "--quiet",
-        action="store_true",
-        dest="QUIET",
-        default=False,
+        action="store_false",
+        dest="VERBOSE",
+        default=True,
         help="do not print data and warnings, default to print",
     )
     parser.add_option(
@@ -161,8 +188,8 @@ if __name__ == "__main__":
     (options, args) = parser.parse_args()
     conn = create_connection(db_file=options.DB_FILE)
     if options.ACTION == 'export':
-        json_data = export_as_json()
-        if not(options.QUIET):
+        json_data = export_as_json(ignore_types=options.IGNORE_TYPES)
+        if options.VERBOSE:
             print_json(json_data)
         if not options.DRY_RUN:
             with open(options.JSON_FILE, "w", encoding="utf8") as f:
@@ -171,7 +198,7 @@ if __name__ == "__main__":
     else:
         with open(options.JSON_FILE, "r", encoding="utf8") as json_file:
             json_data = json.load(json_file)
-        import_notes_into_database(json_data=json_data, dry_run=options.DRY_RUN, verbose=not(options.QUIET), skip_unknown_books=options.SKIP_UNKNOWN_BOOKS)
+        import_notes_into_database(json_data=json_data, ignore_types=options.IGNORE_TYPES, dry_run=options.DRY_RUN, verbose=options.VERBOSE, skip_unknown_books=options.SKIP_UNKNOWN_BOOKS)
 
     conn.close()
     print('done')
