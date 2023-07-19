@@ -92,7 +92,7 @@ def select_note_details(item_id=None, verbose=False):
             # I have at least 1 bm with type 'highlight' AND a 105 with empty json, no 'text' element
             json_data = json.loads(val)
             if 'text' in json_data:
-                note['text'] = json_data
+                note['text'] = json_data['text']
         elif tag_id == 106:
             # 106	bm.color
             # colour; not very useful for b&w readers... frequently there for highlight, not for note. values : cian, yellow
