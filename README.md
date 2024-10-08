@@ -3,7 +3,7 @@ Tool to extract and insert notes &amp; highlights from a Pocketbook (also known 
 
 TL;DR Usage:
 1. reboot your legacy e-reader
-2. copy legacy reader's `/mnt/ext1/system/config/books.db` into a `run`` directory to be created next to `source`
+2. copy legacy reader's `/mnt/ext1/system/config/books.db` into a `run` directory to be created next to `source`
 3. run `python source/main.py` (some other options can be interesting, see `python source/main.py -h`)
 4. reboot your target e-reader
 5. copy target reader's `/mnt/ext1/system/config/books.db` into `run` directory
