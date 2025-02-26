@@ -10,9 +10,10 @@ TL;DR Usage:
 6. run `python source/main.py -a import -s -- dry-run|grep WARNING` (some other options can be interesting, see `python source/main.py -h`)
 7. on target e-reader, **open** all missing books if you want its notes to be imported
 8. run again 4. to 7. until you are OK. *You may also alter `run/notes.json` file if author and/or titles are different for same book between legacy and target e-reader, or to delete some useless notes...*
-9. copy `run/books.db` into target reader's `/mnt/ext1/system/config/books.db`
-10. reboot your target e-reader
-11. pray and/or enjoy
+9. run a definitive `python source/main.py -a import`
+10. copy `run/books.db` into target reader's `/mnt/ext1/system/config/books.db`
+11. reboot your target e-reader
+12. pray and/or enjoy
 
 
 
