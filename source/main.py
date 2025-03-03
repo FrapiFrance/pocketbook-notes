@@ -183,6 +183,8 @@ if __name__ == "__main__":
     )
     (options, args) = parser.parse_args()
     conn = create_connection(db_file=options.DB_FILE)
+    if options.IGNORE_TYPES is None:
+        options.IGNORE_TYPES = []
     if options.ACTION == 'export':
         json_data = export_as_json(ignore_types=options.IGNORE_TYPES)
         if options.VERBOSE:
