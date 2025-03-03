@@ -10,7 +10,7 @@ ENV PYTHONUNBUFFERED=1
 
 RUN apt-get update ; \
     apt-get install -y apt-utils --no-install-recommends; \
-            apt-get install -y git openssl libzip-dev --no-install-recommends; \
+            apt-get install -y git openssl openssh-client libzip-dev --no-install-recommends; \
     rm -r /var/lib/apt/lists/* ;
 
 
