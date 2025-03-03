@@ -1,6 +1,13 @@
 {
     "configurations": [
         {
+            "name": "This Django program",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "django": true
+          },
+        {
             "name": "Docker: Python - General",
             "type": "docker",
             "request": "launch",
